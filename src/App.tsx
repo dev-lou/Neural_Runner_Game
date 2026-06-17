@@ -12,34 +12,30 @@ import ManualControlsHelp from "./components/ManualControlsHelp";
 import { Cpu, Gamepad2, Layers, Award, Sparkles, HelpCircle } from "lucide-react";
 
 export default function App() {
-  const [externalAction, setExternalAction] = useState<ControlAction>(ControlAction.RUN);
-  const [activeAction, setActiveAction] = useState<ControlAction>(ControlAction.RUN);
+  const [activeState, setActiveState] = useState<ControlAction>(ControlAction.RUN);
+  const [jumpPulse, setJumpPulse] = useState<number>(0);
   const [totalResets, setTotalResets] = useState<number>(0);
 
   // Trigger discrete action (e.g. called on every prediction frame or click)
   const handleActionTrigger = (action: ControlAction) => {
     if (action === ControlAction.JUMP) {
-      setExternalAction(ControlAction.JUMP);
-      // Instantly schedule reset so consecutive jump events can fire
-      setTimeout(() => {
-        setExternalAction(prev => (prev === ControlAction.JUMP ? ControlAction.RUN : prev));
-      }, 80);
-    } else if (action === ControlAction.CROUCH) {
-      setExternalAction(ControlAction.CROUCH);
-    } else if (action === ControlAction.STOP) {
-      setExternalAction(ControlAction.STOP);
+      setJumpPulse(p => p + 1);
+    } else {
+      // Manual trigger buttons for continuous actions will force them overriding webcam temporarily
+      setActiveState(action);
     }
   };
 
-  // Change continuous active state
+  // Change continuous active state from Teachable Machine
   const handleActiveActionChange = (action: ControlAction) => {
-    setActiveAction(action);
-    setExternalAction(action);
+    // Only map continuous states
+    if (action === ControlAction.RUN || action === ControlAction.STOP || action === ControlAction.CROUCH) {
+      setActiveState(action);
+    }
   };
 
   const handleManualCrouchRelease = () => {
-    setActiveAction(ControlAction.RUN);
-    setExternalAction(ControlAction.RUN);
+    setActiveState(ControlAction.RUN);
   };
 
   const handleRestart = () => {
@@ -47,78 +43,86 @@ export default function App() {
   };
 
   return (
-    <div id="main-app-container" className="min-h-screen bg-[#1a1c2c] text-[#f4f4f4] flex flex-col font-mono selection:bg-[#ef7d57] selection:text-white pb-8">
+    <div id="main-app-container" className="min-h-screen bg-neutral-950 text-neutral-200 flex flex-col font-sans selection:bg-cyan-500/30 overflow-x-hidden antialiased">
       
-      {/* 8-bit Glow Header */}
-      <header className="border-b-4 border-[#3d4159] bg-[#292c3d] px-6 py-4 flex items-center justify-between shadow-[0_4px_0px_0px_rgba(0,0,0,0.3)] relative overflow-hidden">
-        {/* Glow accent */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#ef7d57] via-[#f2e41c] to-[#73eff7]" />
+      {/* Modern 2026 Glass Header */}
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-neutral-950/60 backdrop-blur-2xl px-6 py-4 flex items-center justify-between shadow-2xl">
+        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-transparent to-violet-500/10 opacity-30 pointer-events-none" />
         
-        <div className="flex items-center gap-3">
-          <div className="bg-[#1a1c2c] p-2 border-2 border-[#3d4159] flex items-center justify-center">
-            <Cpu className="w-5 h-5 text-[#73eff7] animate-pulse" />
+        <div className="relative flex items-center gap-4">
+          <div className="relative p-2 rounded-xl bg-gradient-to-b from-white/10 to-white/5 border border-white/10 shadow-[0_0_15px_rgba(34,211,238,0.2)]">
+            <Cpu className="w-5 h-5 text-cyan-400 animate-pulse" />
+            <div className="absolute inset-0 rounded-xl shadow-[inset_0_0_10px_rgba(34,211,238,0.1)] pointer-events-none" />
           </div>
-          <div>
-            <h1 className="text-sm font-black tracking-widest text-[#f2e41c]">
-              8-BIT RUNNER MATRIX
+          <div className="flex flex-col">
+            <h1 className="text-sm font-semibold tracking-[0.2em] text-white flex items-center gap-2">
+              VISION<span className="text-cyan-400 font-light">SYNC</span>
+              <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 text-[8px] font-mono border border-cyan-500/20">v2.6</span>
             </h1>
-            <p className="text-[10px] text-[#94b0c2]">TEACHABLE MACHINE PLATFORMER v1.0</p>
+            <p className="text-[10px] text-neutral-500 font-medium tracking-wide">TEACHABLE MACHINE KINETIC ENGINE</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-[10px]">
-          <div className="hidden md:flex items-center gap-1.5 bg-[#1a1c2c] px-2.5 py-1 border-2 border-[#3d4159]">
-            <Layers className="w-3.5 h-3.5 text-[#73eff7]" />
-            <span>RESETS: {totalResets}</span>
+        <div className="relative flex items-center gap-4 text-xs font-medium tracking-wider">
+          <div className="hidden md:flex items-center gap-2 text-neutral-400">
+            <Layers className="w-4 h-4 text-neutral-500" />
+            <span>SESSIONS: <span className="text-white">{totalResets}</span></span>
           </div>
-          <div className="flex items-center gap-1.5 bg-[#1a1c2c] px-2.5 py-1 border-2 border-[#3d4159]">
-            <Award className="w-3.5 h-3.5 text-[#ef7d57]" />
-            <span className="text-[9px] uppercase tracking-wider text-[#38b764]">SYSTEM ACTIVE</span>
+          <div className="h-4 w-px bg-white/10 hidden md:block" />
+          <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-full border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px]">CORE ACTIVE</span>
           </div>
         </div>
       </header>
 
       {/* Main Container Layout */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <main className="flex-1 max-w-[1600px] w-full mx-auto p-4 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative z-10">
         
         {/* Left Column: Canvas + Manual Helpers */}
         <motion.div
           id="left-column-container"
-          initial={{ opacity: 0, y: 15 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="lg:col-span-12 xl:col-span-8 flex flex-col gap-6"
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="lg:col-span-12 xl:col-span-8 flex flex-col gap-8"
         >
           {/* Main Gameplay Screen */}
-          <section id="gameplay-canvas-section" className="relative group">
-            <div className="relative bg-[#292c3d] border-4 border-[#3d4159] p-5 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.5)]">
-              <div className="flex items-center justify-between mb-3 border-b-2 border-[#3d4159] pb-2">
-                <span className="text-xs uppercase tracking-wider text-[#94b0c2] flex items-center gap-1.5">
-                  <Gamepad2 className="w-3.5 h-3.5 text-[#73eff7]" /> ARCADE SIMULATION STAGE
+          <section id="gameplay-canvas-section" className="relative group rounded-3xl p-1 overflow-hidden transition-all duration-500">
+            <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent opacity-50 mix-blend-overlay rounded-3xl" />
+            <div className="relative bg-neutral-900 border border-white/10 rounded-[22px] overflow-hidden shadow-2xl">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-neutral-950/50 backdrop-blur-sm">
+                <span className="text-xs tracking-[0.15em] text-neutral-400 flex items-center gap-2 font-medium">
+                  <Gamepad2 className="w-4 h-4 text-cyan-400" /> KINETIC SIMULATOR
                 </span>
-                <span className="text-[9px] text-[#5d6179] font-bold uppercase">60FPS SYNC</span>
+                <span className="text-[10px] text-neutral-500 font-mono tracking-widest bg-neutral-950 px-2 py-1 rounded border border-white/5">
+                  60Hz SYNC
+                </span>
               </div>
               <GameCanvas
-                externalAction={externalAction}
+                activeState={activeState}
+                jumpPulse={jumpPulse}
                 onRestart={handleRestart}
               />
             </div>
+            {/* Soft outer glow */}
+            <div className="absolute -inset-4 bg-gradient-to-r from-cyan-500/0 via-cyan-500/5 to-violet-500/0 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-1000 -z-10" />
           </section>
 
           {/* Manual controls helper info blocks and simulated testing tiles */}
           <ManualControlsHelp
             onManualTrigger={handleActionTrigger}
             onManualCrouchRelease={handleManualCrouchRelease}
-            activeAction={activeAction}
+            activeAction={activeState}
           />
         </motion.div>
 
         {/* Right Column: Teachable Machine webcam & pose mapper */}
         <motion.div
           id="right-column-container"
-          initial={{ opacity: 0, x: 15 }}
+          initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.4, delay: 0.15 }}
+          transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
           className="lg:col-span-12 xl:col-span-4 h-full"
         >
           <TeachableMachineController
@@ -129,14 +133,15 @@ export default function App() {
 
       </main>
 
-      {/* Retro styled Footer */}
-      <footer className="border-t-4 border-[#3d4159] bg-[#292c3d]/65 px-6 py-4 mt-auto text-[#94b0c2] text-[10px] leading-relaxed flex flex-col md:flex-row items-center justify-between gap-3 shadow-[0_-4px_0px_0px_rgba(0,0,0,0.15)]">
-        <div className="flex items-center gap-1">
-          <Sparkles className="w-3.5 h-3.5 text-[#f2e41c]" />
-          <span>Made for Google AI Studio &bull; Low Latency Machine Sensor Inputs</span>
+      {/* Modern Footer */}
+      <footer className="border-t border-white/5 bg-neutral-950 px-6 py-6 mt-auto text-neutral-500 text-[11px] flex flex-col md:flex-row items-center justify-between gap-4 font-medium tracking-wide">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-violet-400" />
+          <span>Engineered for Ultra-Low Latency Inference &bull; Model Vision</span>
         </div>
-        <div>
-          <span>Press Space to Jump over obstacles &bull; Press S / Down-Arrow to duck under birds</span>
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-2"><kbd className="bg-white/5 px-1.5 py-0.5 rounded border border-white/10 text-neutral-300 font-sans">SPACE</kbd> Ascent</span>
+          <span className="flex items-center gap-2"><kbd className="bg-white/5 px-1.5 py-0.5 rounded border border-white/10 text-neutral-300 font-sans">DOWN</kbd> Descent</span>
         </div>
       </footer>
 

@@ -128,12 +128,14 @@ export default function TeachableMachineController({
       const newMappings: Record<string, ControlAction> = {};
       modelClasses.forEach((cls) => {
         const lower = cls.toLowerCase();
-        if (lower.includes("jump") || lower.includes("up") || lower.includes("raise") || lower.includes("hands")) {
+        if (lower.includes("jump") || lower.includes("up") || lower.includes("raise") || lower.includes("hands") || lower.includes("happy") || lower.includes("smile")) {
           newMappings[cls] = ControlAction.JUMP;
-        } else if (lower.includes("crouch") || lower.includes("duck") || lower.includes("down") || lower.includes("low") || lower.includes("lean")) {
+        } else if (lower.includes("crouch") || lower.includes("duck") || lower.includes("down") || lower.includes("low") || lower.includes("lean") || lower.includes("sad") || lower.includes("frown")) {
           newMappings[cls] = ControlAction.CROUCH;
         } else if (lower.includes("stop") || lower.includes("idle") || lower.includes("pause") || lower.includes("rest") || lower.includes("stand") || lower.includes("nothing") || lower.includes("neutral")) {
           newMappings[cls] = ControlAction.STOP;
+        } else if (lower.includes("angry") || lower.includes("mad") || lower.includes("run") || lower.includes("go") || lower.includes("forward")) {
+          newMappings[cls] = ControlAction.RUN; 
         } else {
           newMappings[cls] = ControlAction.RUN;
         }
@@ -284,23 +286,28 @@ export default function TeachableMachineController({
   }, []);
 
   return (
-    <div id="teachable-machine-container" className="flex flex-col bg-[#292c3d] border-4 border-[#3d4159] p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.5)] h-full select-none text-[#f4f4f4] font-mono">
+    <div id="teachable-machine-container" className="flex flex-col bg-neutral-900/80 backdrop-blur-3xl border border-white/10 rounded-3xl p-6 shadow-2xl h-full select-none text-neutral-200 font-sans relative overflow-hidden">
       
+      {/* Background glow */}
+      <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 blur-3xl rounded-full pointer-events-none" />
+
       {/* Title Header */}
-      <div className="flex items-center justify-between mb-4 pb-3 border-b-2 border-[#3d4159]">
-        <div className="flex items-center gap-2">
-          <Settings className="w-5 h-5 text-[#73eff7]" />
-          <h2 className="text-sm uppercase tracking-widest font-black text-white">MACHINE CONTROL</h2>
+      <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/10 relative z-10">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-white/5 border border-white/10">
+            <Settings className="w-4 h-4 text-cyan-400" />
+          </div>
+          <h2 className="text-xs uppercase tracking-[0.2em] font-medium text-white">NEURAL SENSOR</h2>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`inline-block w-3 h-3 border-2 border-[#1a1c2c] ${
-            modelStatus === "READY" ? "bg-[#38b764] animate-pulse" :
-            modelStatus === "LOADING" ? "bg-[#f2e41c] animate-pulse" :
-            modelStatus === "ERROR" ? "bg-[#ef7d57]" : "bg-[#5d6179]"
+        <div className="flex items-center gap-2 bg-neutral-950 px-3 py-1.5 rounded-full border border-white/5">
+          <span className={`inline-block w-2.5 h-2.5 rounded-full ${
+            modelStatus === "READY" ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)] animate-pulse" :
+            modelStatus === "LOADING" ? "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)] animate-pulse" :
+            modelStatus === "ERROR" ? "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]" : "bg-neutral-600"
           }`} />
-          <span className="text-xs font-black uppercase text-[#94b0c2]">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">
             {modelStatus === "READY" ? "ONLINE" :
-             modelStatus === "LOADING" ? "LOADING" :
+             modelStatus === "LOADING" ? "BOOTING" :
              modelStatus === "ERROR" ? "ERROR" : "OFFLINE"}
           </span>
         </div>
@@ -308,37 +315,37 @@ export default function TeachableMachineController({
 
       {/* Script Status Check */}
       {!scriptsLoaded && !scriptsError && (
-        <div className="flex flex-col items-center justify-center py-6 text-center text-[#94b0c2]">
-          <RefreshCw className="w-8 h-8 animate-spin text-[#73eff7] mb-2" />
-          <p className="text-xs">BOOTING TENSORFLOW...</p>
+        <div className="flex flex-col items-center justify-center py-8 text-center text-cyan-400 relative z-10">
+          <RefreshCw className="w-8 h-8 animate-spin mb-4 opacity-50" />
+          <p className="text-[10px] tracking-widest font-medium">INITIALIZING TENSORFLOW ENGINE</p>
         </div>
       )}
 
       {scriptsError && (
-        <div className="bg-[#111] border-2 border-[#ef7d57] p-3 mb-4 text-xs flex gap-2.5 items-start">
-          <AlertTriangle className="w-5 h-5 text-[#ef7d57] shrink-0 mt-0.5" />
+        <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-4 mb-6 text-xs flex gap-3 items-start relative z-10">
+          <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
           <div>
-            <p className="text-[#ef7d57] font-bold mb-1">WARNING: SCRIPT ERROR</p>
-            <p className="text-zinc-400">{scriptsError}</p>
+            <p className="text-rose-400 font-bold mb-1 tracking-wide">SYSTEM EXCEPTION</p>
+            <p className="text-rose-400/80 mb-3">{scriptsError}</p>
             <button
               onClick={() => { setScriptsError(null); loadModel(modelUrl); }}
-              className="mt-2 text-[10px] uppercase font-black tracking-wider text-[#1a1c2c] bg-[#73eff7] border-b-2 border-r-2 border-[#41a6b0] px-2.5 py-1"
+              className="text-[10px] uppercase font-bold tracking-wider text-white bg-rose-500 hover:bg-rose-400 px-4 py-2 rounded-lg transition-colors"
             >
-              RETRY CONNECTION
+              REINITIALIZE
             </button>
           </div>
         </div>
       )}
 
       {/* Model URL Loader Form */}
-      <div className="flex flex-col gap-2 mb-4">
-        <label className="text-xs uppercase font-bold tracking-widest text-[#94b0c2]">TEACHABLE MACHINE MODEL URL</label>
+      <div className="flex flex-col gap-3 mb-6 relative z-10">
+        <label className="text-[10px] uppercase font-bold tracking-widest text-neutral-500">REMOTE ENDPOINT URL</label>
         <div className="flex gap-2">
           <input
             id="tm-model-url-input"
             type="text"
-            className="flex-1 bg-[#111] border-4 border-[#3d4159] px-3 py-1.5 text-xs text-white outline-none focus:border-[#73eff7] transition-colors"
-            placeholder="https://teachablemachine.withgoogle.com/models/..."
+            className="flex-1 bg-neutral-950/50 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-cyan-500/50 focus:shadow-[0_0_15px_rgba(34,211,238,0.1)] transition-all font-mono"
+            placeholder="https://teachablemachine.../model"
             value={modelUrl}
             onChange={(e) => setModelUrl(e.target.value)}
           />
@@ -346,37 +353,34 @@ export default function TeachableMachineController({
             id="tm-load-model-btn"
             onClick={() => loadModel(modelUrl)}
             disabled={!scriptsLoaded || modelStatus === "LOADING"}
-            className="bg-[#73eff7] hover:bg-[#aefbfd] text-[#1a1c2c] disabled:bg-[#111] disabled:text-[#3d4159] border-b-4 border-r-4 border-[#41a6b0] disabled:border-transparent text-xs uppercase px-4 py-1.5 font-bold transition-all active:translate-y-[1px]"
+            className="bg-white hover:bg-neutral-200 text-neutral-950 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:border-white/5 border border-transparent rounded-xl text-xs uppercase px-5 py-2.5 font-bold tracking-wider transition-all disabled:opacity-50"
           >
-            {modelStatus === "LOADING" ? "LOAD..." : "LOAD"}
+            {modelStatus === "LOADING" ? "..." : "BIND"}
           </button>
         </div>
-        <p className="text-[10px] text-[#94b0c2] leading-relaxed">
-          Pasted URL must have model.json, metadata.json and weights publicly accessible.
-        </p>
       </div>
 
       {/* Main Split Interface */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 min-h-[220px]">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 min-h-[220px] relative z-10">
         
         {/* Camera Feed Viewport */}
-        <div className="relative bg-[#111] border-4 border-[#3d4159] flex flex-col items-center justify-center text-center overflow-hidden h-[180px] md:h-full group">
+        <div className="relative bg-neutral-950 border border-white/10 rounded-2xl flex flex-col items-center justify-center text-center overflow-hidden h-[180px] md:h-full group shadow-inner">
           {webcamEnabled ? (
             <video
               id="tm-webcam-video"
               ref={videoRef}
               playsInline
               muted
-              className="w-full h-full object-cover scale-x-[-1]" // mirrored
+              className="w-full h-full object-cover scale-x-[-1] opacity-80 mix-blend-screen" // mirrored + tech overlay look
             />
           ) : (
-            <div className="p-4 flex flex-col items-center gap-2">
-              <Camera className="w-8 h-8 text-[#5d6179]" />
-              <div className="text-xs text-[#94b0c2] max-w-[200px]">
+            <div className="p-4 flex flex-col items-center gap-3">
+              <Camera className="w-8 h-8 text-neutral-700" />
+              <div className="text-[10px] text-neutral-500 font-medium tracking-wide">
                 {cameraPermission === "denied" ? (
-                  <span className="text-[#ef7d57]">WEBCAM BLOCKED. GRANT PERMISSION IN ADDRESS BAR.</span>
+                  <span className="text-rose-400">ACCESS DENIED</span>
                 ) : (
-                  <span>REAL-TIME VISION SENSOR OFFLINE.</span>
+                  <span>SENSOR OFFLINE</span>
                 )}
               </div>
             </div>
@@ -384,26 +388,25 @@ export default function TeachableMachineController({
 
           {/* Quick Camera Overlay State Controls */}
           {modelStatus === "READY" && (
-            <div className="absolute inset-0 bg-[#1a1c2c]/85 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity gap-2.5">
+            <div className="absolute inset-0 bg-neutral-950/40 backdrop-blur-sm opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity gap-3">
               <button
                 id="tm-toggle-webcam-btn"
                 onClick={toggleWebcam}
                 disabled={webcamLoading}
-                className="bg-[#73eff7] hover:bg-white text-[#1a1c2c] p-2.5 border-b-2 border-r-2 border-[#41a6b0] transition-transform transform active:scale-95 shadow-lg flex items-center justify-center"
-                title={webcamEnabled ? "Pause Webcam" : "Activate Webcam"}
+                className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-full border border-white/20 transition-transform active:scale-95 shadow-xl backdrop-blur-md"
               >
-                {webcamEnabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                {webcamEnabled ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current" />}
               </button>
             </div>
           )}
 
           {/* Prompt banner to start camera */}
           {modelStatus === "READY" && !webcamEnabled && (
-            <div className="absolute bottom-2 left-2 right-2 bg-[#292c3d]/95 border-2 border-[#3d4159] p-1.5 flex items-center justify-between text-[11px]">
-              <span className="text-white">START WEBCAM CONTROL!</span>
+            <div className="absolute bottom-3 left-3 right-3 bg-neutral-900/90 backdrop-blur-md border border-white/10 rounded-lg p-2 flex items-center justify-between text-[10px]">
+              <span className="text-neutral-300 font-medium tracking-wide ml-2">ACTIVATE SENSOR</span>
               <button
                 onClick={startWebcam}
-                className="bg-[#38b764] hover:bg-[#4ddc7c] text-white px-2 py-0.5 border-b-2 border-r-2 border-[#257144] font-black uppercase text-[9px]"
+                className="bg-emerald-500 hover:bg-emerald-400 text-white px-3 py-1.5 rounded text-[9px] font-bold tracking-wider"
               >
                 START
               </button>
@@ -412,13 +415,15 @@ export default function TeachableMachineController({
         </div>
 
         {/* Prediction Results & Controls Mapper */}
-        <div className="flex flex-col gap-3 justify-between">
+        <div className="flex flex-col gap-4 justify-between">
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs uppercase font-bold tracking-widest text-[#94b0c2] flex items-center gap-1">
-                <Sliders className="w-3.5 h-3.5 text-[#ef7d57]" /> THRESHOLD ({(threshold * 100).toFixed(0)}%)
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-neutral-500 flex items-center gap-2">
+                <Sliders className="w-3 h-3 text-cyan-400" /> CONFIDENCE MIN
               </span>
-              <span className="text-xs font-black text-[#73eff7]">{(threshold).toFixed(2)}</span>
+              <span className="text-[10px] font-bold text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded border border-cyan-400/20">
+                {(threshold * 100).toFixed(0)}%
+              </span>
             </div>
             <input
               id="tm-threshold-slider"
@@ -428,15 +433,15 @@ export default function TeachableMachineController({
               step="0.05"
               value={threshold}
               onChange={(e) => setThreshold(parseFloat(e.target.value))}
-              className="w-full h-1.5 bg-[#111] border border-[#3d4159] rounded-lg appearance-none cursor-pointer accent-[#ef7d57] mb-3"
+              className="w-full h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-cyan-400 mb-2"
             />
           </div>
 
-          <div className="flex-1 overflow-y-auto max-h-[140px] pr-1 space-y-2 select-none">
+          <div className="flex-1 overflow-y-auto max-h-[160px] pr-2 space-y-2 select-none">
             {modelStatus !== "READY" ? (
-              <div className="h-full flex flex-col items-center justify-center p-3 text-center border-2 border-dashed border-[#3d4159] bg-[#111] rounded">
-                <p className="text-[11px] text-[#94b0c2] max-w-[170px] leading-relaxed">
-                  No model loaded yet. Test with manual simulators below.
+              <div className="h-full flex flex-col items-center justify-center p-4 text-center border border-dashed border-white/10 bg-neutral-950/30 rounded-xl">
+                <p className="text-[10px] text-neutral-500 tracking-wide leading-relaxed">
+                  MODEL NOT BOUND.
                 </p>
               </div>
             ) : (
@@ -449,20 +454,20 @@ export default function TeachableMachineController({
                 return (
                   <div
                     key={cls}
-                    className={`p-2 transition-colors border-2 ${
+                    className={`p-3 rounded-xl transition-colors border ${
                       isTriggered
-                        ? "bg-[#38b764] border-[#111] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,0.4)]"
-                        : "bg-[#111] border-[#3d4159] text-[#94b0c2] opacity-70"
+                        ? "bg-cyan-500/10 border-cyan-500/30 shadow-[0_4px_20px_rgba(34,211,238,0.1)]"
+                        : "bg-neutral-950 border-white/5 opacity-60"
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-1 mb-1.5">
-                      <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         {isTriggered ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-white shrink-0" />
+                          <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
                         ) : (
-                          <span className="w-1.5 h-1.5 rounded-full bg-zinc-700 shrink-0" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-neutral-700" />
                         )}
-                        <span className="text-xs font-black tracking-tight truncate" title={cls}>
+                        <span className={`text-[11px] font-semibold tracking-wider truncate ${isTriggered ? "text-cyan-50" : "text-neutral-400"}`} title={cls}>
                           {cls}
                         </span>
                       </div>
@@ -474,29 +479,23 @@ export default function TeachableMachineController({
                           setMappings({ ...mappings, [cls]: val });
                         }}
                         value={mapTo}
-                        className="bg-[#292c3d] border-2 border-[#3d4159] text-[10px] px-1.5 py-0.5 text-[#f4f4f4] outline-none cursor-pointer font-bold shrink-0"
+                        className="bg-neutral-900 border border-white/10 rounded-md text-[9px] px-2 py-1 text-white outline-none cursor-pointer font-bold shrink-0 focus:border-cyan-500/50"
                       >
-                        <option value={ControlAction.RUN}>🚗 Run</option>
-                        <option value={ControlAction.JUMP}>🦘 Jump</option>
-                        <option value={ControlAction.CROUCH}>🦆 Crouch</option>
-                        <option value={ControlAction.STOP}>🛑 Stop/Stand</option>
+                        <option value={ControlAction.RUN}>MOTION</option>
+                        <option value={ControlAction.JUMP}>ASCEND</option>
+                        <option value={ControlAction.CROUCH}>DESCEND</option>
+                        <option value={ControlAction.STOP}>IDLE</option>
                       </select>
                     </div>
 
                     {/* Confidence percentage bar */}
-                    <div className="w-full bg-[#292c3d] rounded h-1.5 overflow-hidden flex">
+                    <div className="w-full bg-neutral-900 rounded-full h-1 overflow-hidden flex">
                       <div
-                        className={`h-full transition-all duration-75 ${
-                          isTriggered ? "bg-white" : "bg-[#ef7d57]"
+                        className={`h-full transition-all duration-100 ease-out ${
+                          isTriggered ? "bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.5)]" : "bg-neutral-600"
                         }`}
                         style={{ width: `${(prob * 100).toFixed(0)}%` }}
                       />
-                    </div>
-                    <div className="flex justify-between items-center text-[9px] mt-1">
-                      <span>CONFIDENCE</span>
-                      <span className={isTriggered ? "text-white font-black" : ""}>
-                        {(prob * 100).toFixed(0)}%
-                      </span>
                     </div>
                   </div>
                 );
@@ -506,24 +505,27 @@ export default function TeachableMachineController({
         </div>
       </div>
 
-      {/* Active prediction gesture banner */}
-      <div className="mt-4 pt-3.5 border-t-2 border-[#3d4159] flex items-center justify-between">
-        <span className="text-xs text-[#94b0c2]">ACTIVE VISION POSE:</span>
-        <span className={`text-xs px-3 py-1 font-black tracking-widest uppercase flex items-center gap-1.5 border-2 border-[#111] shadow-[2px_2px_0px_0px_rgba(0,0,0,0.5)] ${
-          activeAction === ControlAction.JUMP ? "bg-[#ef7d57] text-white" :
-          activeAction === ControlAction.CROUCH ? "bg-[#73eff7] text-[#1a1c2c]" :
-          "bg-[#38b764] text-white"
+      // Header mapping section
+      {/* Model Sandbox Quick Tutorial Help */}
+      <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+        <span className="text-[10px] text-neutral-500 font-medium tracking-wide">ACTIVE VISION STATE:</span>
+        <span className={`text-[10px] px-3 py-1.5 font-bold tracking-[0.15em] rounded-full flex items-center gap-2 border ${
+          activeAction === ControlAction.JUMP ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400" :
+          activeAction === ControlAction.CROUCH ? "bg-violet-500/10 border-violet-500/30 text-violet-400" :
+          activeAction === ControlAction.STOP ? "bg-rose-500/10 border-rose-500/30 text-rose-400" :
+          "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
         }`}>
-          {activeAction === ControlAction.JUMP ? "🦘 JUMPING" :
-           activeAction === ControlAction.CROUCH ? "🦆 CROUCHING" :
-           "🚗 RUNNING (NEUTRAL)"}
+          {activeAction === ControlAction.JUMP && <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />}
+          {activeAction === ControlAction.CROUCH && <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />}
+          {activeAction === ControlAction.STOP && <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />}
+          {activeAction === ControlAction.RUN && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+          {activeAction === ControlAction.JUMP ? "ASCEND" :
+           activeAction === ControlAction.CROUCH ? "DESCEND" :
+           activeAction === ControlAction.STOP ? "IDLE / STOP" :
+           "KINETIC MOTION"}
         </span>
       </div>
 
-      {/* Model Sandbox Quick Tutorial Help */}
-      <div className="mt-3 text-[10px] text-[#94b0c2] leading-relaxed border-t border-[#3d4159]/60 pt-2">
-        <span className="text-white font-black uppercase">QUICK TUTORIAL:</span> Map neutral images to RUN, raised elbows to JUMP and crouch bends to CROUCH. Turn on your WebRTC webcam above to begin real-time controls.
-      </div>
     </div>
   );
 }

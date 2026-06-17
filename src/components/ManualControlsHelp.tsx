@@ -13,22 +13,24 @@ export default function ManualControlsHelp({
   activeAction,
 }: ManualControlsProps) {
   return (
-    <div id="manual-controls-help" className="flex flex-col bg-[#292c3d] border-4 border-[#3d4159] p-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.5)] select-none text-[#f4f4f4] font-mono">
+    <div id="manual-controls-help" className="bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl select-none text-neutral-200 font-sans relative overflow-hidden">
       
       {/* Title */}
-      <div className="flex items-center gap-2 mb-4 pb-3 border-b-2 border-[#3d4159]">
-        <Gamepad2 className="w-5 h-5 text-[#f2e41c]" />
-        <h3 className="text-sm uppercase tracking-widest font-black text-white">MANUAL CONTROLS SIMULATOR</h3>
+      <div className="flex items-center gap-3 mb-6 pb-4 border-b border-white/10 relative z-10">
+        <div className="p-2 rounded-lg bg-white/5 border border-white/10">
+          <Gamepad2 className="w-4 h-4 text-emerald-400" />
+        </div>
+        <h3 className="text-xs uppercase tracking-[0.2em] font-medium text-white">MANUAL OVERRIDE</h3>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 relative z-10">
         {/* Gestures Simulator */}
-        <div className="p-4 bg-[#111] border-4 border-[#3d4159] flex flex-col justify-between">
+        <div className="p-5 bg-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-inner">
           <div>
-            <h4 className="text-xs uppercase font-black tracking-widest text-[#ef7d57] mb-1.5 flex items-center gap-1">
-              <Info className="w-4 h-4 shrink-0" /> MANUAL POSE INJECTOR
+            <h4 className="text-[10px] uppercase font-bold tracking-widest text-cyan-400 mb-2 flex items-center gap-2">
+              <Info className="w-3.5 h-3.5 shrink-0" /> POSE INJECTOR
             </h4>
-            <p className="text-[10px] text-[#94b0c2] leading-relaxed mb-4">
+            <p className="text-[10px] text-neutral-500 leading-relaxed mb-5">
               Click or hold triggers to simulate live Teachable Machine poses directly:
             </p>
           </div>
@@ -38,14 +40,14 @@ export default function ManualControlsHelp({
             <button
               id="simulate-jump-btn"
               onClick={() => onManualTrigger(ControlAction.JUMP)}
-              className={`w-full text-xs uppercase px-4 py-2.5 font-bold transition-all border-2 flex items-center justify-between ${
+              className={`w-full text-[11px] uppercase tracking-wider px-4 py-3 rounded-xl font-bold transition-all border flex items-center justify-between ${
                 activeAction === ControlAction.JUMP
-                  ? "bg-[#ef7d57] border-white text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,0.4)]"
-                  : "bg-[#292c3d] hover:bg-[#3d4159] border-[#3d4159] text-zinc-300"
+                  ? "bg-cyan-500/20 border-cyan-400/50 text-cyan-50 shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+                  : "bg-white/5 hover:bg-white/10 border-white/10 text-neutral-300"
               }`}
             >
-              <span>🦘 Simulate Pose: JUMP</span>
-              <span className="text-[9px] bg-black px-1.5 py-0.5 border border-[#3d4159] text-white">Click</span>
+              <span>ASCEND / JUMP</span>
+              <span className="text-[9px] bg-black/50 px-2 py-1 rounded text-neutral-400 font-mono">CLICK</span>
             </button>
 
             {/* Crouch button (Hold to crouch, release to stop) */}
@@ -56,52 +58,52 @@ export default function ManualControlsHelp({
               onMouseLeave={onManualCrouchRelease}
               onTouchStart={(e) => { e.preventDefault(); onManualTrigger(ControlAction.CROUCH); }}
               onTouchEnd={(e) => { e.preventDefault(); onManualCrouchRelease(); }}
-              className={`w-full text-xs uppercase px-4 py-2.5 font-bold transition-all select-none border-2 flex items-center justify-between ${
+              className={`w-full text-[11px] uppercase tracking-wider px-4 py-3 rounded-xl font-bold transition-all select-none border flex items-center justify-between ${
                 activeAction === ControlAction.CROUCH
-                  ? "bg-[#73eff7] border-white text-[#1a1c2c] shadow-[2px_2px_0px_0px_rgba(0,0,0,0.4)]"
-                  : "bg-[#292c3d] hover:bg-[#3d4159] border-[#3d4159] text-zinc-300"
+                  ? "bg-violet-500/20 border-violet-400/50 text-violet-50 shadow-[0_0_15px_rgba(139,92,246,0.2)]"
+                  : "bg-white/5 hover:bg-white/10 border-white/10 text-neutral-300"
               }`}
             >
-              <span>🦆 Simulate Pose: CROUCH</span>
-              <span className="text-[9px] bg-black px-1.5 py-0.5 border border-[#3d4159] text-white">Hold</span>
+              <span>DESCEND / CROUCH</span>
+              <span className="text-[9px] bg-black/50 px-2 py-1 rounded text-neutral-400 font-mono">HOLD</span>
             </button>
           </div>
         </div>
 
         {/* Keyboard Instructions Panel */}
-        <div className="p-4 bg-[#111] border-4 border-[#3d4159] flex flex-col justify-between">
+        <div className="p-5 bg-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-inner">
           <div>
-            <h4 className="text-xs uppercase font-black tracking-widest text-[#73eff7] mb-1.5 flex items-center gap-1">
-              <HelpCircle className="w-4 h-4 text-[#73eff7] shrink-0" /> KEYBOARD SHORTCUTS
+            <h4 className="text-[10px] uppercase font-bold tracking-widest text-emerald-400 mb-2 flex items-center gap-2">
+              <HelpCircle className="w-3.5 h-3.5 shrink-0" /> KEYBOARD OVERRIDES
             </h4>
-            <p className="text-[10px] text-[#94b0c2] leading-relaxed mb-4">
+            <p className="text-[10px] text-neutral-500 leading-relaxed mb-5">
               Use standard arcade-style keybinds at any moment during gameplay:
             </p>
           </div>
 
-          <div className="space-y-2 text-xs">
+          <div className="space-y-3 text-xs tracking-wide">
             {/* Space / Up key */}
-            <div className="flex items-center justify-between py-1 border-b border-[#3d4159]">
-              <span className="text-[#94b0c2]">Jump Over Obstacles</span>
-              <div className="flex gap-1.5">
-                <span className="bg-[#292c3d] border-2 border-[#3d4159] px-2 py-0.5 text-[9px] font-bold text-white shadow-[1px_1px_0px_0px_rgba(0,0,0,0.5)]">Space</span>
-                <span className="bg-[#292c3d] border-2 border-[#3d4159] px-2 py-0.5 text-[9px] font-bold text-white shadow-[1px_1px_0px_0px_rgba(0,0,0,0.5)]"><ArrowUp className="w-3 h-3 inline" /></span>
+            <div className="flex items-center justify-between py-2 border-b border-white/5">
+              <span className="text-neutral-400 text-[11px]">Jump / Ascend</span>
+              <div className="flex gap-2">
+                <span className="bg-white/10 border border-white/10 rounded px-2 py-1 text-[9px] font-bold text-neutral-300 font-mono">SPACE</span>
+                <span className="bg-white/10 border border-white/10 rounded px-2 py-1 text-[9px] font-bold text-neutral-300 field-mono"><ArrowUp className="w-3 h-3 inline" /></span>
               </div>
             </div>
 
             {/* Down / S key */}
-            <div className="flex items-center justify-between py-1 border-b border-[#3d4159]">
-              <span className="text-[#94b0c2]">Duck Under Pterodactyls</span>
-              <div className="flex gap-1.5">
-                <span className="bg-[#292c3d] border-2 border-[#3d4159] px-2 py-0.5 text-[9px] font-bold text-white shadow-[1px_1px_0px_0px_rgba(0,0,0,0.5)]">S</span>
-                <span className="bg-[#292c3d] border-2 border-[#3d4159] px-2 py-0.5 text-[9px] font-bold text-white shadow-[1px_1px_0px_0px_rgba(0,0,0,0.5)]"><ArrowDown className="w-3 h-3 inline" /></span>
+            <div className="flex items-center justify-between py-2 border-b border-white/5">
+              <span className="text-neutral-400 text-[11px]">Crouch / Descend</span>
+              <div className="flex gap-2">
+                <span className="bg-white/10 border border-white/10 rounded px-2 py-1 text-[9px] font-bold text-neutral-300 font-mono">S</span>
+                <span className="bg-white/10 border border-white/10 rounded px-2 py-1 text-[9px] font-bold text-neutral-300 font-mono"><ArrowDown className="w-3 h-3 inline" /></span>
               </div>
             </div>
 
             {/* Pause key */}
-            <div className="flex items-center justify-between py-1">
-              <span className="text-[#94b0c2]">Pause Runtime Game Block</span>
-              <span className="bg-[#292c3d] border-2 border-[#3d4159] px-2 py-0.5 text-[9px] font-bold text-white shadow-[1px_1px_0px_0px_rgba(0,0,0,0.5)]">P</span>
+            <div className="flex items-center justify-between py-2">
+              <span className="text-neutral-400 text-[11px]">Pause Runtime Block</span>
+              <span className="bg-white/10 border border-white/10 rounded px-2 py-1 text-[9px] font-bold text-neutral-300 font-mono">P</span>
             </div>
           </div>
         </div>

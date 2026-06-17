@@ -4,7 +4,8 @@ import { soundEngine } from "../utils/audio";
 import { Volume2, VolumeX, Play, RotateCcw, Pause, HelpCircle } from "lucide-react";
 
 interface GameCanvasProps {
-  externalAction: ControlAction;
+  activeState: ControlAction;
+  jumpPulse: number;
   onRestart: () => void;
 }
 
@@ -155,7 +156,7 @@ const SPRITES = {
   ]
 };
 
-export default function GameCanvas({ externalAction, onRestart }: GameCanvasProps) {
+export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -232,25 +233,31 @@ export default function GameCanvas({ externalAction, onRestart }: GameCanvasProp
     soundEngine.toggleSound(!isMuted);
   }, [isMuted]);
 
-  // Read Inputs from Teachable Machine Prop
+  // Read Inputs from Teachable Machine Prop (Continuous States)
   useEffect(() => {
-    const engine = gameEngineRef.current;
     if (gameState !== GameState.RUNNING) return;
 
-    if (externalAction === ControlAction.JUMP) {
-      triggerJump();
-      setActiveSource("webcam");
-    } else if (externalAction === ControlAction.CROUCH) {
+    if (activeState === ControlAction.CROUCH) {
       triggerCrouch(true);
       setActiveSource("webcam");
-    } else if (externalAction === ControlAction.RUN) {
+    } else if (activeState === ControlAction.RUN) {
       triggerCrouch(false);
       setActiveSource("webcam");
-    } else if (externalAction === ControlAction.STOP) {
+    } else if (activeState === ControlAction.STOP) {
       triggerCrouch(false);
       setActiveSource("webcam");
     }
-  }, [externalAction, gameState]);
+  }, [activeState, gameState]);
+
+  // Read Inputs from Teachable Machine Prop (Discrete States like Jump)
+  useEffect(() => {
+    if (gameState !== GameState.RUNNING) return;
+    
+    if (jumpPulse > 0) {
+      triggerJump();
+      setActiveSource("webcam");
+    }
+  }, [jumpPulse, gameState]);
 
   // Handle Keyboard fallbacks
   useEffect(() => {
@@ -751,8 +758,8 @@ export default function GameCanvas({ externalAction, onRestart }: GameCanvasProp
     ctx.imageSmoothingEnabled = false; // Ensures sharp retro pixels!
 
     // 1. Theme Color Interpolation for Day / Night cycles (Vibrant Palette Theme)
-    const dayBg = "#1a1c2c";
-    const nightBg = "#0b0c13";
+    const dayBg = "#171717"; // neutralize
+    const nightBg = "#0a0a0a";
     ctx.fillStyle = dayBg;
     ctx.fillRect(0, 0, engine.virtualWidth, engine.virtualHeight);
 
@@ -765,15 +772,15 @@ export default function GameCanvas({ externalAction, onRestart }: GameCanvasProp
     }
 
     // Dynamic stroke styles based on active light/dark state
-    const currentThemeAccent = isNight ? "#ef7d57" : "#73eff7";
-    const bgDecorationColor = isNight ? "#292c3d" : "#3d4159";
+    const currentThemeAccent = isNight ? "#22d3ee" : "#22d3ee"; // cyan-400 always for player
+    const bgDecorationColor = isNight ? "#262626" : "#404040";
 
     // 2. Draw Stars (night decoration)
     if (engine.dayNightAlpha > 0.05) {
       ctx.save();
       ctx.globalAlpha = engine.dayNightAlpha;
       engine.stars.forEach(st => {
-        ctx.fillStyle = `rgba(242, 228, 28, ${st.alpha})`; // neon yellow stars
+        ctx.fillStyle = `rgba(167, 139, 250, ${st.alpha})`; // violet-400 stars
         ctx.fillRect(st.x, st.y, st.size, st.size);
       });
       ctx.restore();
@@ -781,21 +788,21 @@ export default function GameCanvas({ externalAction, onRestart }: GameCanvasProp
 
     // 3. Draw Clouds
     engine.clouds.forEach(cl => {
-      ctx.fillStyle = isNight ? "#292c3d" : "#3d4159";
+      ctx.fillStyle = bgDecorationColor;
       ctx.fillRect(cl.x, cl.y, cl.size, cl.size * 0.4);
       ctx.fillRect(cl.x + cl.size * 0.15, cl.y - cl.size * 0.15, cl.size * 0.7, cl.size * 0.5);
     });
 
     // 4. Draw Ground grid & horizon line
-    ctx.strokeStyle = "#3d4159";
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#404040";
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, engine.groundY);
     ctx.lineTo(engine.virtualWidth, engine.groundY);
     ctx.stroke();
 
     // Draw retro dashes on ground
-    ctx.fillStyle = isNight ? "#38b764" : "#f2e41c"; // green/yellow vibrant grid lines
+    ctx.fillStyle = isNight ? "#8b5cf6" : "#0ea5e9"; // violet / sky
     for (let d = 0; d < engine.virtualWidth; d += 40) {
       const groundOffset = Math.floor((engine.score * engine.speed) % 40);
       ctx.fillRect(d - groundOffset, engine.groundY + 4, 15, 2);
@@ -805,7 +812,7 @@ export default function GameCanvas({ externalAction, onRestart }: GameCanvasProp
     // 5. Draw Obstacles (procedural pixel shapes) - vibrant orange or green
     engine.obstacles.forEach(ob => {
       ctx.save();
-      const obsColor = isNight ? "#38b764" : "#ef7d57";
+      const obsColor = isNight ? "#a78bfa" : "#fbbf24"; // amber/violet
       if (ob.type === "cactus_small") {
         drawPixelGrid(ctx, ob.x, ob.y - ob.height, SPRITES.cactusSmall, ob.width / 10, obsColor);
       } else if (ob.type === "cactus_large") {
@@ -818,7 +825,7 @@ export default function GameCanvas({ externalAction, onRestart }: GameCanvasProp
         drawPixelGrid(ctx, ob.x + 28, ob.y - ob.height + 3, SPRITES.cactusSmall, doubleScale, obsColor);
       } else if (ob.type === "bird") {
         const frameSprite = ob.frame === 1 ? SPRITES.bird1 : SPRITES.bird2;
-        drawPixelGrid(ctx, ob.x, ob.y - ob.height, frameSprite, ob.width / 19, "#f2e41c"); // bright bird yellow!
+        drawPixelGrid(ctx, ob.x, ob.y - ob.height, frameSprite, ob.width / 19, "#f43f5e"); // vibrant rose bird
       }
       ctx.restore();
     });
@@ -861,125 +868,132 @@ export default function GameCanvas({ externalAction, onRestart }: GameCanvasProp
 
     // 9. Informative screens overlay
     if (gameState === GameState.IDLE) {
-      ctx.fillStyle = "rgba(26, 28, 44, 0.75)";
+      ctx.fillStyle = "rgba(10, 10, 10, 0.85)";
       ctx.fillRect(0, 0, engine.virtualWidth, engine.virtualHeight);
 
       // Accent border
-      ctx.strokeStyle = "#73eff7";
-      ctx.lineWidth = 4;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+      ctx.lineWidth = 1;
       ctx.strokeRect(20, 20, engine.virtualWidth - 40, engine.virtualHeight - 40);
 
       ctx.fillStyle = "#ffffff";
-      ctx.font = "normal 14px 'Press Start 2P', monospace";
+      ctx.font = "bold 24px system-ui, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("MACHINE RUNNER", engine.virtualWidth / 2, engine.virtualHeight / 2 - 25);
+      ctx.letterSpacing = "8px"; // Note: letterSpacing works in newer canvas APIs
+      ctx.fillText("NEURAL RUNNER", engine.virtualWidth / 2, engine.virtualHeight / 2 - 25);
       
-      ctx.font = "normal 8.5px 'Press Start 2P', monospace";
-      ctx.fillStyle = "#f2e41c";
-      ctx.fillText("TAP SPACE OR INJECT JUMP TO START", engine.virtualWidth / 2, engine.virtualHeight / 2 + 15);
-      ctx.font = "10px Share Tech Mono, monospace";
-      ctx.fillStyle = "#94b0c2";
-      ctx.fillText("STAND BY INSTRUCTION: ARROW-UP = JUMP | ARROW-DOWN = CROUCH", engine.virtualWidth / 2, engine.virtualHeight / 2 + 45);
+      ctx.font = "bold 11px monospace";
+      ctx.fillStyle = "#22d3ee"; // cyan-400
+      ctx.letterSpacing = "2px";
+      ctx.fillText("TAP SPACE OR INJECT JUMP POSE TO INITIATE", engine.virtualWidth / 2, engine.virtualHeight / 2 + 15);
+      ctx.font = "10px monospace";
+      ctx.fillStyle = "#737373"; // neutral-500
+      ctx.fillText("MANUAL OVERRIDES: SPACE/UP = ASCEND | S/DOWN = DESCEND", engine.virtualWidth / 2, engine.virtualHeight / 2 + 45);
     }
 
     if (gameState === GameState.PAUSED) {
-      ctx.fillStyle = "rgba(26, 28, 44, 0.65)";
+      ctx.fillStyle = "rgba(10, 10, 10, 0.75)";
       ctx.fillRect(0, 0, engine.virtualWidth, engine.virtualHeight);
 
-      ctx.fillStyle = "#73eff7";
-      ctx.font = "normal 14px 'Press Start 2P', monospace";
+      ctx.fillStyle = "#34d399"; // emerald-400
+      ctx.font = "bold 20px system-ui, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("RUN PAUSED", engine.virtualWidth / 2, engine.virtualHeight / 2 - 5);
-      ctx.font = "12px Share Tech Mono, monospace";
-      ctx.fillStyle = "#f4f4f4";
-      ctx.fillText("Press 'P' to Resume Gameplay Stream", engine.virtualWidth / 2, engine.virtualHeight / 2 + 18);
+      ctx.letterSpacing = "6px";
+      ctx.fillText("SYSTEM PAUSED", engine.virtualWidth / 2, engine.virtualHeight / 2 - 5);
+      ctx.font = "12px monospace";
+      ctx.fillStyle = "#a3a3a3"; // neutral-400
+      ctx.letterSpacing = "1px";
+      ctx.fillText("Press 'P' to Resume Gameplay Stream", engine.virtualWidth / 2, engine.virtualHeight / 2 + 25);
     }
 
     if (gameState === GameState.GAMEOVER) {
-      ctx.fillStyle = "rgba(11, 12, 19, 0.8)";
+      ctx.fillStyle = "rgba(10, 10, 10, 0.9)";
       ctx.fillRect(0, 0, engine.virtualWidth, engine.virtualHeight);
 
-      ctx.fillStyle = "#ef7d57";
-      ctx.font = "normal 15px 'Press Start 2P', monospace";
+      ctx.fillStyle = "#f43f5e"; // rose-500
+      ctx.font = "bold 28px system-ui, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("GAME OVER", engine.virtualWidth / 2, engine.virtualHeight / 2 - 25);
+      ctx.letterSpacing = "8px";
+      ctx.fillText("TERMINATED", engine.virtualWidth / 2, engine.virtualHeight / 2 - 30);
 
-      ctx.fillStyle = "#f4f4f5";
-      ctx.font = "14px Share Tech Mono, monospace";
-      ctx.fillText(`OBSTACLES CLEARED: RUNNERS SCORE ${Math.floor(engine.score)}`, engine.virtualWidth / 2, engine.virtualHeight / 2 + 5);
+      ctx.fillStyle = "#e5e5e5"; // neutral-200
+      ctx.font = "bold 14px monospace";
+      ctx.letterSpacing = "2px";
+      ctx.fillText(`SESSION SCORE: ${Math.floor(engine.score)}`, engine.virtualWidth / 2, engine.virtualHeight / 2 + 10);
 
-      ctx.font = "normal 8px 'Press Start 2P', monospace";
-      ctx.fillStyle = "#f2e41c";
-      ctx.fillText("CLICK RESET KEY OR SPACE TO STAND BY", engine.virtualWidth / 2, engine.virtualHeight / 2 + 35);
+      ctx.font = "bold 10px monospace";
+      ctx.fillStyle = "#fbbf24"; // amber-400
+      ctx.letterSpacing = "1px";
+      ctx.fillText("PRESS RESET ICON OR SPACE TO REBOOT", engine.virtualWidth / 2, engine.virtualHeight / 2 + 45);
     }
 
     ctx.restore();
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       {/* Top HUD Dashboard */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#292c3d] border-4 border-[#3d4159] rounded-none px-4 py-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.5)] font-mono">
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-neutral-900/60 backdrop-blur-xl border border-white/10 rounded-2xl px-6 py-4 shadow-2xl font-sans relative z-10 overflow-hidden">
         
         {/* Score blocks */}
-        <div className="flex items-center gap-6 select-none">
-          <div className="flex flex-col">
-            <span className="text-[10px] text-[#94b0c2] uppercase font-black tracking-widest leading-none mb-1">SCORE</span>
-            <span className="text-lg font-black text-white">{currentScore.toString().padStart(5, "0")}</span>
+        <div className="flex items-center gap-8 select-none">
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] text-neutral-400 uppercase font-bold tracking-[0.2em] leading-none text-shadow-sm">SCORE</span>
+            <span className="text-xl font-bold text-white tracking-widest font-mono">{currentScore.toString().padStart(5, "0")}</span>
           </div>
 
-          <div className="flex flex-col">
-            <span className="text-[10px] text-[#94b0c2] uppercase font-black tracking-widest leading-none mb-1">HI SCORE</span>
-            <span className="text-lg font-black text-[#f2e41c]">{highScore.toString().padStart(5, "0")}</span>
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] text-amber-400/80 uppercase font-bold tracking-[0.2em] leading-none text-shadow-sm">HI SCORE</span>
+            <span className="text-xl font-bold text-amber-400 tracking-widest font-mono">{highScore.toString().padStart(5, "0")}</span>
           </div>
 
-          <div className="flex flex-col hidden sm:flex">
-            <span className="text-[10px] text-[#94b0c2] uppercase font-black tracking-widest leading-none mb-1">SPEED</span>
-            <span className="text-sm font-black text-[#73eff7]">x{speedMultiplier.toFixed(1)}</span>
+          <div className="flex flex-col gap-1 hidden sm:flex">
+            <span className="text-[10px] text-cyan-400/80 uppercase font-bold tracking-[0.2em] leading-none text-shadow-sm">SPEED</span>
+            <span className="text-xl font-bold text-cyan-400 tracking-widest font-mono">x{speedMultiplier.toFixed(1)}</span>
           </div>
         </div>
 
         {/* Input Trigger diagnostics badge */}
-        <div id="control-diagnostics-badge" className="flex items-center gap-3">
+        <div id="control-diagnostics-badge" className="flex items-center gap-4">
           {activeSource === "webcam" && (
             <button
               id="vision-velocity-sync-toggle"
               onClick={() => setVisionSync(!visionSync)}
-              className={`flex items-center gap-1.5 px-2 py-1 text-[9px] font-black border-2 transition-all ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider transition-all border shadow-sm ${
                 visionSync 
-                  ? "bg-[#ef7d57]/15 border-[#ef7d57] text-[#ef7d57] shadow-[0_0_8px_rgba(239,125,87,0.4)]" 
-                  : "bg-black/40 border-[#5d6179] text-[#94b0c2]"
+                  ? "bg-rose-500/10 border-rose-500/30 text-rose-400" 
+                  : "bg-neutral-800 border-white/5 text-neutral-400"
               }`}
               title={visionSync ? "Velocity sync is ON. Character runs ONLY when model predicts RUN/JUMP/CROUCH." : "Velocity sync is OFF. Classic auto-runner."}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${visionSync ? "bg-[#ef7d57] animate-pulse" : "bg-zinc-600"}`} />
+              <span className={`w-2 h-2 rounded-full ${visionSync ? "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)] animate-pulse" : "bg-neutral-600"}`} />
               <span>LIVE MOTION SYNC: {visionSync ? "ACTIVE" : "FREE"}</span>
             </button>
           )}
 
-          <div className="flex flex-col items-end text-right text-[10px] text-[#94b0c2]">
-            <span className="uppercase font-black tracking-widest text-[9px]">INPUT CONTROLLER:</span>
-            <span className={`font-black ${activeSource === "webcam" ? "text-[#73eff7]" : "text-[#f2e41c]"}`}>
+          <div className="flex flex-col items-end text-right text-[10px] text-neutral-400 gap-1 border-l border-white/10 pl-4">
+            <span className="uppercase font-bold tracking-[0.1em] text-[9px] text-neutral-500">INPUT SOURCE</span>
+            <span className={`font-bold tracking-wider uppercase ${activeSource === "webcam" ? "text-cyan-400 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]" : "text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]"}`}>
               {activeSource === "webcam" ? "VISION MATRIX" : "KEYBOARD DEV"}
             </span>
           </div>
           
           {/* Quick Audio & pause buttons */}
-          <div className="flex items-center gap-1.5 border-l-2 border-[#3d4159] pl-3">
+          <div className="flex items-center gap-2 border-l border-white/10 pl-4">
             <button
               id="game-audio-mute-toggle"
               onClick={() => setIsMuted(!isMuted)}
-              className="text-[#94b0c2] hover:text-white p-1.5 hover:bg-[#3d4159] border border-transparent hover:border-[#5d6179] transition-colors"
+              className="text-neutral-400 hover:text-white p-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-transparent transition-all hover:scale-105 active:scale-95"
               title={isMuted ? "Unmute sound" : "Mute Sound"}
             >
-              {isMuted ? <VolumeX className="w-4 h-4 text-[#ef7d57]" /> : <Volume2 className="w-4 h-4" />}
+              {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
             </button>
             
             {gameState === GameState.RUNNING && (
               <button
                 id="btn-pause-game"
                 onClick={pauseGame}
-                className="text-[#94b0c2] hover:text-white p-1.5 hover:bg-[#3d4159] border border-transparent hover:border-[#5d6179] transition-colors"
+                className="text-neutral-400 hover:text-white p-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-transparent transition-all hover:scale-105 active:scale-95"
                 title="Pause (P)"
               >
                 <Pause className="w-4 h-4" />
@@ -990,7 +1004,7 @@ export default function GameCanvas({ externalAction, onRestart }: GameCanvasProp
               <button
                 id="btn-resume-game"
                 onClick={resumeGame}
-                className="bg-[#38b764] hover:bg-[#4ddc7c] text-white p-1.5 border-b-2 border-r-2 border-[#257144] transition-colors"
+                className="text-white p-2.5 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all hover:scale-105 active:scale-95"
                 title="Resume"
               >
                 <Play className="w-4 h-4" />
@@ -1004,7 +1018,7 @@ export default function GameCanvas({ externalAction, onRestart }: GameCanvasProp
       <div
         id="game-rendering-viewport"
         ref={containerRef}
-        className="w-full relative border-4 border-[#3d4159] bg-[#1a1c2c] shadow-[4px_4px_0px_0px_rgba(0,0,0,0.5)] overflow-hidden aspect-[800/310]"
+        className="w-full relative rounded-3xl border border-white/10 bg-neutral-950 shadow-2xl overflow-hidden aspect-[800/310]"
       >
         <canvas
           id="retro-runner-canvas"
@@ -1019,9 +1033,9 @@ export default function GameCanvas({ externalAction, onRestart }: GameCanvasProp
 
         {/* Floating Help Banner for interactive discovery */}
         {gameState === GameState.RUNNING && (
-          <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/60 border border-[#3d4159] px-2 py-0.5 text-[9px] font-mono text-[#94b0c2]">
-            <HelpCircle className="w-3.5 h-3.5 text-[#73eff7]" />
-            <span>CLICK FRAME TO JUMP | PRESS &quot;P&quot; TO PAUSE</span>
+          <div className="absolute top-4 left-4 flex items-center gap-2 bg-neutral-900/80 backdrop-blur-sm border border-white/10 rounded-full px-3 py-1.5 text-[9px] font-mono text-neutral-400">
+            <HelpCircle className="w-3.5 h-3.5 text-cyan-400" />
+            <span>CLICK TO JUMP &bull; P TO PAUSE</span>
           </div>
         )}
       </div>
