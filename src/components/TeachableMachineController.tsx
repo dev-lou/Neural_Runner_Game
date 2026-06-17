@@ -21,7 +21,7 @@ export default function TeachableMachineController({
 }: TMControllerProps) {
   // Model URL & States
   const [modelUrl, setModelUrl] = useState<string>(
-    "https://teachablemachine.withgoogle.com/models/p_r_o_p_e_r_t_y_i_d/" // Placeholder or base template tutorial URL
+    "https://teachablemachine.withgoogle.com/models/RrK6h6t94/"
   );
   const [scriptsLoaded, setScriptsLoaded] = useState<boolean>(false);
   const [scriptsError, setScriptsError] = useState<string | null>(null);
@@ -29,7 +29,7 @@ export default function TeachableMachineController({
   const [classes, setClasses] = useState<string[]>([]);
   const [mappings, setMappings] = useState<Record<string, ControlAction>>({});
   const [predictions, setPredictions] = useState<TMClassPrediction[]>([]);
-  const [threshold, setThreshold] = useState<number>(0.85);
+  const [threshold, setThreshold] = useState<number>(0.45);
   const [activeAction, setActiveAction] = useState<ControlAction>(ControlAction.RUN);
 
   // Webcam States
@@ -42,6 +42,7 @@ export default function TeachableMachineController({
   const streamRef = useRef<MediaStream | null>(null);
   const modelRef = useRef<any>(null);
   const predictionLoopRef = useRef<number | null>(null);
+  const cropCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // 1. Load TensorFlow and Teachable Machine SDK from CDN
   useEffect(() => {
@@ -117,7 +118,8 @@ export default function TeachableMachineController({
         throw new Error("Could not download Teachable Machine metadata. Verify the URL is public and correct.");
       }
       const metadata = await metaRes.json();
-      const modelClasses: string[] = metadata.classes || [];
+      const modelClasses: string[] = metadata.labels || metadata.classes || [];
+      console.log("[TM] Loaded classes:", modelClasses);
       setClasses(modelClasses);
 
       // Load model via SDK
@@ -128,13 +130,13 @@ export default function TeachableMachineController({
       const newMappings: Record<string, ControlAction> = {};
       modelClasses.forEach((cls) => {
         const lower = cls.toLowerCase();
-        if (lower.includes("jump") || lower.includes("up") || lower.includes("raise") || lower.includes("hands") || lower.includes("happy") || lower.includes("smile")) {
+        if (lower.includes("jump") || lower.includes("up") || lower.includes("raise") || lower.includes("hands") || lower.includes("happy") || lower.includes("smile") || lower.includes("1finger") || lower.includes("finger") || lower.includes("point")) {
           newMappings[cls] = ControlAction.JUMP;
-        } else if (lower.includes("crouch") || lower.includes("duck") || lower.includes("down") || lower.includes("low") || lower.includes("lean") || lower.includes("sad") || lower.includes("frown")) {
+        } else if (lower.includes("crouch") || lower.includes("duck") || lower.includes("down") || lower.includes("low") || lower.includes("lean") || lower.includes("sad") || lower.includes("frown") || lower.includes("circle") || lower.includes("fist")) {
           newMappings[cls] = ControlAction.CROUCH;
         } else if (lower.includes("stop") || lower.includes("idle") || lower.includes("pause") || lower.includes("rest") || lower.includes("stand") || lower.includes("nothing") || lower.includes("neutral")) {
           newMappings[cls] = ControlAction.STOP;
-        } else if (lower.includes("angry") || lower.includes("mad") || lower.includes("run") || lower.includes("go") || lower.includes("forward")) {
+        } else if (lower.includes("angry") || lower.includes("mad") || lower.includes("run") || lower.includes("go") || lower.includes("forward") || lower.includes("thumbs") || lower.includes("thumb") || lower.includes("hifive") || lower.includes("five")) {
           newMappings[cls] = ControlAction.RUN; 
         } else {
           newMappings[cls] = ControlAction.RUN;
@@ -199,6 +201,33 @@ export default function TeachableMachineController({
     onActiveActionChange(ControlAction.RUN);
   };
 
+  // Auto-load model when scripts are loaded
+  useEffect(() => {
+    if (scriptsLoaded && modelStatus === "IDLE") {
+      loadModel(modelUrl);
+    }
+  }, [scriptsLoaded, modelStatus, modelUrl]);
+
+  // Auto-start webcam when model is ready
+  useEffect(() => {
+    if (modelStatus === "READY" && !webcamEnabled && cameraPermission !== "denied" && !webcamLoading) {
+      startWebcam();
+    }
+  }, [modelStatus, webcamEnabled, cameraPermission, webcamLoading]);
+
+  // Keep refs in sync for the prediction loop to avoid stale closures
+  const mappingsRef = useRef(mappings);
+  const thresholdRef = useRef(threshold);
+  const activeActionRef = useRef(activeAction);
+  const onActionTriggerRef = useRef(onActionTrigger);
+  const onActiveActionChangeRef = useRef(onActiveActionChange);
+
+  useEffect(() => { mappingsRef.current = mappings; }, [mappings]);
+  useEffect(() => { thresholdRef.current = threshold; }, [threshold]);
+  useEffect(() => { activeActionRef.current = activeAction; }, [activeAction]);
+  useEffect(() => { onActionTriggerRef.current = onActionTrigger; }, [onActionTrigger]);
+  useEffect(() => { onActiveActionChangeRef.current = onActiveActionChange; }, [onActiveActionChange]);
+
   // Prediction loop
   useEffect(() => {
     if (!webcamEnabled || modelStatus !== "READY" || !modelRef.current || !videoRef.current) {
@@ -209,14 +238,44 @@ export default function TeachableMachineController({
       return;
     }
 
+    let running = true;
+
     const predictFrame = async () => {
-      if (!videoRef.current || !modelRef.current || !webcamEnabled) return;
+      if (!running || !videoRef.current || !modelRef.current) return;
 
       try {
-        // Runs prediction on video element
-        const predictionList = await modelRef.current.predict(videoRef.current);
+        const v = videoRef.current;
+        if (!v.videoWidth || !v.videoHeight) {
+          // Wait for video metadata
+          predictionLoopRef.current = requestAnimationFrame(predictFrame);
+          return;
+        }
+
+        // Teachable Machine trains on 1:1 center-cropped, mirrored images.
+        // If we pass the raw 16:9 video, TF.js squashes it, destroying accuracy!
+        if (!cropCanvasRef.current) {
+          const canvas = document.createElement("canvas");
+          canvas.width = 224;
+          canvas.height = 224;
+          cropCanvasRef.current = canvas;
+        }
         
-        // Convert to our state format
+        const ctx = cropCanvasRef.current.getContext("2d");
+        if (ctx) {
+          const size = Math.min(v.videoWidth, v.videoHeight);
+          const startX = (v.videoWidth - size) / 2;
+          const startY = (v.videoHeight - size) / 2;
+          
+          ctx.save();
+          // TM mirrors the webcam by default
+          ctx.translate(224, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(v, startX, startY, size, size, 0, 0, 224, 224);
+          ctx.restore();
+        }
+
+        const predictionList = await modelRef.current.predict(cropCanvasRef.current);
+        
         const formatted: TMClassPrediction[] = predictionList.map((p: any) => ({
           className: p.className,
           probability: p.probability,
@@ -232,46 +291,49 @@ export default function TeachableMachineController({
           }
         }
 
-        // Apply threshold and update game state action
-        if (maxPred && maxPred.probability >= threshold) {
-          const action = mappings[maxPred.className] || ControlAction.RUN;
-          if (action !== activeAction) {
-            setActiveAction(action);
-            onActiveActionChange(action);
+        const currentThreshold = thresholdRef.current;
+        const currentMappings = mappingsRef.current;
+        const currentActiveAction = activeActionRef.current;
 
-            // Edge Trigger: Only send discrete trigger at the precise onset of JUMP pose
+        if (maxPred && maxPred.probability >= currentThreshold) {
+          const action = currentMappings[maxPred.className] || ControlAction.RUN;
+          if (action !== currentActiveAction) {
+            activeActionRef.current = action;
+            setActiveAction(action);
+            onActiveActionChangeRef.current(action);
+
+            // Edge Trigger: send discrete trigger at onset of JUMP
             if (action === ControlAction.JUMP) {
-              onActionTrigger(ControlAction.JUMP);
+              onActionTriggerRef.current(ControlAction.JUMP);
             }
           }
 
           // CROUCH needs continuous active sensor triggers
           if (action === ControlAction.CROUCH) {
-            onActionTrigger(ControlAction.CROUCH);
+            onActionTriggerRef.current(ControlAction.CROUCH);
           }
         } else {
-          // Defaults to stand still / STOP if confidence drops below target ratio
-          if (activeAction !== ControlAction.STOP) {
-            setActiveAction(ControlAction.STOP);
-            onActiveActionChange(ControlAction.STOP);
-          }
+          // When confidence is low, DO NOTHING. Maintain the current state.
+          // This prevents jittering or dropping the player into a RUN state randomly.
         }
       } catch (e) {
         console.warn("Prediction frame skipped:", e);
       }
 
-      // Restrict rate slightly to prevent CPU overload, requestAnimationFrame standard
-      predictionLoopRef.current = requestAnimationFrame(predictFrame);
+      if (running) {
+        predictionLoopRef.current = requestAnimationFrame(predictFrame);
+      }
     };
 
     predictionLoopRef.current = requestAnimationFrame(predictFrame);
 
     return () => {
+      running = false;
       if (predictionLoopRef.current) {
         cancelAnimationFrame(predictionLoopRef.current);
       }
     };
-  }, [webcamEnabled, modelStatus, mappings, threshold, activeAction, onActionTrigger, onActiveActionChange]);
+  }, [webcamEnabled, modelStatus]);
 
   // Clean-up on unmount
   useEffect(() => {
@@ -286,7 +348,7 @@ export default function TeachableMachineController({
   }, []);
 
   return (
-    <div id="teachable-machine-container" className="flex flex-col bg-neutral-900/80 backdrop-blur-3xl border border-white/10 rounded-3xl p-6 shadow-2xl h-full select-none text-neutral-200 font-sans relative overflow-hidden">
+    <div id="teachable-machine-container" className="flex flex-col bg-neutral-900/80 backdrop-blur-3xl border border-white/10 rounded-2xl p-4 shadow-2xl w-80 max-h-[85vh] select-none text-neutral-200 font-sans relative overflow-hidden">
       
       {/* Background glow */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 blur-3xl rounded-full pointer-events-none" />
@@ -337,43 +399,20 @@ export default function TeachableMachineController({
         </div>
       )}
 
-      {/* Model URL Loader Form */}
-      <div className="flex flex-col gap-3 mb-6 relative z-10">
-        <label className="text-[10px] uppercase font-bold tracking-widest text-neutral-500">REMOTE ENDPOINT URL</label>
-        <div className="flex gap-2">
-          <input
-            id="tm-model-url-input"
-            type="text"
-            className="flex-1 bg-neutral-950/50 backdrop-blur-sm border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-cyan-500/50 focus:shadow-[0_0_15px_rgba(34,211,238,0.1)] transition-all font-mono"
-            placeholder="https://teachablemachine.../model"
-            value={modelUrl}
-            onChange={(e) => setModelUrl(e.target.value)}
-          />
-          <button
-            id="tm-load-model-btn"
-            onClick={() => loadModel(modelUrl)}
-            disabled={!scriptsLoaded || modelStatus === "LOADING"}
-            className="bg-white hover:bg-neutral-200 text-neutral-950 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:border-white/5 border border-transparent rounded-xl text-xs uppercase px-5 py-2.5 font-bold tracking-wider transition-all disabled:opacity-50"
-          >
-            {modelStatus === "LOADING" ? "..." : "BIND"}
-          </button>
-        </div>
-      </div>
-
       {/* Main Split Interface */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 min-h-[220px] relative z-10">
+      <div className="flex flex-col gap-4 flex-1 overflow-y-auto relative z-10 pr-1 custom-scrollbar">
         
         {/* Camera Feed Viewport */}
-        <div className="relative bg-neutral-950 border border-white/10 rounded-2xl flex flex-col items-center justify-center text-center overflow-hidden h-[180px] md:h-full group shadow-inner">
-          {webcamEnabled ? (
-            <video
-              id="tm-webcam-video"
-              ref={videoRef}
-              playsInline
-              muted
-              className="w-full h-full object-cover scale-x-[-1] opacity-80 mix-blend-screen" // mirrored + tech overlay look
-            />
-          ) : (
+        <div className="relative bg-neutral-950 border border-white/10 rounded-xl flex flex-col items-center justify-center text-center overflow-hidden h-40 shrink-0 group shadow-inner">
+          <video
+            id="tm-webcam-video"
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className={`w-full h-full object-cover scale-x-[-1] ${webcamEnabled ? '' : 'hidden'}`}
+          />
+          {!webcamEnabled && (
             <div className="p-4 flex flex-col items-center gap-3">
               <Camera className="w-8 h-8 text-neutral-700" />
               <div className="text-[10px] text-neutral-500 font-medium tracking-wide">
@@ -505,7 +544,7 @@ export default function TeachableMachineController({
         </div>
       </div>
 
-      // Header mapping section
+      {/* Header mapping section */}
       {/* Model Sandbox Quick Tutorial Help */}
       <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
         <span className="text-[10px] text-neutral-500 font-medium tracking-wide">ACTIVE VISION STATE:</span>

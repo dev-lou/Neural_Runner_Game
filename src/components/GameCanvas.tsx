@@ -162,6 +162,7 @@ export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCa
 
   // Core States
   const [gameState, setGameState] = useState<GameState>(GameState.IDLE);
+  const gameStateRef = useRef<GameState>(GameState.IDLE);
   const [currentScore, setCurrentScore] = useState<number>(0);
   const [highScore, setHighScore] = useState<number>(0);
   const [activeSource, setActiveSource] = useState<"keyboard" | "webcam">("keyboard");
@@ -250,12 +251,18 @@ export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCa
   }, [activeState, gameState]);
 
   // Read Inputs from Teachable Machine Prop (Discrete States like Jump)
+  const prevJumpPulse = useRef(jumpPulse);
   useEffect(() => {
-    if (gameState !== GameState.RUNNING) return;
-    
-    if (jumpPulse > 0) {
-      triggerJump();
+    if (jumpPulse > prevJumpPulse.current) {
+      prevJumpPulse.current = jumpPulse;
       setActiveSource("webcam");
+      if (gameState === GameState.IDLE) {
+        startGame();
+      } else if (gameState === GameState.GAMEOVER) {
+        restartGame();
+      } else if (gameState === GameState.RUNNING) {
+        triggerJump();
+      }
     }
   }, [jumpPulse, gameState]);
 
@@ -316,7 +323,7 @@ export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCa
         p.isCrouching = false;
         p.height = 48;
       }
-      p.vy = -13.0; // Slightly stronger, premium crisp leap strength
+      p.vy = 13.0; // Positive = upward in our coordinate system (groundY - p.y)
       p.isJumping = true;
       soundEngine.playJump();
 
@@ -332,7 +339,7 @@ export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCa
     if (crouch) {
       if (p.isJumping) {
         // Pro mechanical addition: FAST-FALL!
-        p.vy += 3.8; // Accelerate downward rapid descent!
+        p.vy -= 3.8; // Accelerate downward rapid descent!
       } else if (!p.isCrouching) {
         p.isCrouching = true;
         p.height = 28;
@@ -406,6 +413,7 @@ export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCa
     engine.scoreSincePointSound = 0;
     
     setGameState(GameState.RUNNING);
+    gameStateRef.current = GameState.RUNNING;
     setIsNight(false);
     setSpeedMultiplier(1);
     setCurrentScore(0);
@@ -419,6 +427,7 @@ export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCa
 
   const pauseGame = () => {
     setGameState(GameState.PAUSED);
+    gameStateRef.current = GameState.PAUSED;
     const engine = gameEngineRef.current;
     if (engine.gameLoopId) {
       cancelAnimationFrame(engine.gameLoopId);
@@ -428,6 +437,7 @@ export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCa
 
   const resumeGame = () => {
     setGameState(GameState.RUNNING);
+    gameStateRef.current = GameState.RUNNING;
     const engine = gameEngineRef.current;
     engine.lastTime = performance.now();
     if (engine.gameLoopId) cancelAnimationFrame(engine.gameLoopId);
@@ -441,6 +451,7 @@ export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCa
 
   const gameOver = () => {
     setGameState(GameState.GAMEOVER);
+    gameStateRef.current = GameState.GAMEOVER;
     const engine = gameEngineRef.current;
     if (engine.gameLoopId) {
       cancelAnimationFrame(engine.gameLoopId);
@@ -502,7 +513,7 @@ export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCa
     // Smoothly interpolate modern vision speed factor to make transitions look creamy-smooth
     let targetSpeedFactor = 1.0;
     if (activeSource === "webcam" && visionSync) {
-      if (externalAction === ControlAction.STOP) {
+      if (activeState === ControlAction.STOP) {
         targetSpeedFactor = 0.0;
       }
     }
@@ -545,9 +556,9 @@ export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCa
     const p = engine.player;
     if (p.isJumping) {
       p.y += p.vy * dt;
-      p.vy += 0.62 * dt; // Gravity
+      p.vy -= 0.62 * dt; // Gravity pulls down (reduces positive velocity)
 
-      if (p.y >= 0) {
+      if (p.y <= 0) {
         p.y = 0;
         p.vy = 0;
         p.isJumping = false;
@@ -630,6 +641,12 @@ export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCa
       ) {
         gameOver();
         return;
+      }
+
+      // 7. Check if obstacle is successfully dodged
+      if (!ob.passed && obXRight < playerXLeft) {
+        ob.passed = true;
+        soundEngine.playPoint(); // Play reward chime!
       }
     }
 
@@ -846,7 +863,7 @@ export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCa
 
     // Select sprite based on state
     let playerGrid = SPRITES.dinoRun1;
-    if (gameState === GameState.GAMEOVER) {
+    if (gameStateRef.current === GameState.GAMEOVER) {
       playerGrid = SPRITES.dinoRun1; // or separate dead sprite
     } else if (p.isJumping) {
       playerGrid = SPRITES.dinoRun1; // airborne leg bend
@@ -867,7 +884,7 @@ export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCa
     }
 
     // 9. Informative screens overlay
-    if (gameState === GameState.IDLE) {
+    if (gameStateRef.current === GameState.IDLE) {
       ctx.fillStyle = "rgba(10, 10, 10, 0.85)";
       ctx.fillRect(0, 0, engine.virtualWidth, engine.virtualHeight);
 
@@ -891,7 +908,7 @@ export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCa
       ctx.fillText("MANUAL OVERRIDES: SPACE/UP = ASCEND | S/DOWN = DESCEND", engine.virtualWidth / 2, engine.virtualHeight / 2 + 45);
     }
 
-    if (gameState === GameState.PAUSED) {
+    if (gameStateRef.current === GameState.PAUSED) {
       ctx.fillStyle = "rgba(10, 10, 10, 0.75)";
       ctx.fillRect(0, 0, engine.virtualWidth, engine.virtualHeight);
 
@@ -906,7 +923,7 @@ export default function GameCanvas({ activeState, jumpPulse, onRestart }: GameCa
       ctx.fillText("Press 'P' to Resume Gameplay Stream", engine.virtualWidth / 2, engine.virtualHeight / 2 + 25);
     }
 
-    if (gameState === GameState.GAMEOVER) {
+    if (gameStateRef.current === GameState.GAMEOVER) {
       ctx.fillStyle = "rgba(10, 10, 10, 0.9)";
       ctx.fillRect(0, 0, engine.virtualWidth, engine.virtualHeight);
 
